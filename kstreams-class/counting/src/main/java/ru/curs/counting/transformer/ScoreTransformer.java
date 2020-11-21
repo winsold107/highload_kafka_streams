@@ -9,7 +9,7 @@ import ru.curs.counting.model.Bet;
 import ru.curs.counting.model.EventScore;
 import ru.curs.counting.model.Outcome;
 import ru.curs.counting.model.Score;
-import ru.curs.windows.util.StatefulTransformer;
+import ru.curs.counting.util.StatefulTransformer;
 
 import java.util.Optional;
 

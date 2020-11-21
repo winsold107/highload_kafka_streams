@@ -2,6 +2,7 @@ package ru.curs.counting;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.*;
 import org.apache.kafka.streams.state.KeyValueStore;
+import org.apache.kafka.streams.test.TestRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,7 @@ import ru.curs.counting.configuration.TopologyConfiguration;
 import ru.curs.counting.model.*;
 import ru.curs.counting.transformer.TotallingTransformer;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static ru.curs.counting.model.TopicNames.*;
@@ -22,6 +24,8 @@ public class TestTopology {
     private TestInputTopic<String, Bet> inputTopic;
     private TestInputTopic<String, EventScore> scoreTopic;
     private TestOutputTopic<String, Fraud> fraudTopic;
+    private TestOutputTopic<String, Long> outputTopic;
+    private TestOutputTopic<String, Long> outputScoreTopic;
 
     @BeforeEach
     public void setUp() {
@@ -37,6 +41,12 @@ public class TestTopology {
 
         fraudTopic = topologyTestDriver.createOutputTopic(FRAUD_TOPIC, Serdes.String().deserializer(),
                 new JsonSerde<>(Fraud.class).deserializer());
+
+        outputTopic = topologyTestDriver.createOutputTopic(BETTOR_AMOUNT_TOPIC, Serdes.String().deserializer(),
+                Serdes.Long().deserializer());
+
+        outputScoreTopic = topologyTestDriver.createOutputTopic(COMMAND_AMOUNT_TOPIC, Serdes.String().deserializer(),
+                Serdes.Long().deserializer());
     }
 
     @AfterEach
@@ -56,9 +66,8 @@ public class TestTopology {
         placeBet(new Bet("John", "A-B", Outcome.A, 20, 1.1, 0));
         placeBet(new Bet("John", "C-A", Outcome.H, 10, 1.1,3));
 
-        TotallingTransformer kv_store = new TotallingTransformer("bettor");
-        KeyValueStore<String, Long> store = topologyTestDriver.getKeyValueStore(kv_store.STORE_NAME);
-        assertEquals(30, store.get("John").intValue());
+        assertEquals(20, outputTopic.readValue());
+        assertEquals(30, outputTopic.readValue());
     }
 
     @Test
@@ -69,10 +78,12 @@ public class TestTopology {
         placeBet(new Bet("John", "C-D", Outcome.A, 10, 1.1,2));
         placeBet(new Bet("John", "C-A", Outcome.H, 10, 1.1,3));
 
-        TotallingTransformer kv_store = new TotallingTransformer("bettor");
-        KeyValueStore<String, Long> store = topologyTestDriver.getKeyValueStore(kv_store.STORE_NAME);
-        assertEquals(60, store.get("John").intValue());
-        assertEquals(30, store.get("Marley").intValue());
+        Long[] ans = new Long [] {20L, 30L, 40L, 50L, 60L};
+
+        for (int i = 0; i < 5; i++) {
+            TestRecord<String, Long> record = outputTopic.readRecord();
+            assertEquals(ans[i], record.value());
+        }
     }
 
     @Test
@@ -80,10 +91,12 @@ public class TestTopology {
         placeBet(new Bet("John", "A-B", Outcome.A, 20, 1.1, 0));
         placeBet(new Bet("Marley", "A-B", Outcome.H, 30, 1.1,0));
 
-        TotallingTransformer kv_store = new TotallingTransformer("command");
-        KeyValueStore<String, Long> store = topologyTestDriver.getKeyValueStore(kv_store.STORE_NAME);
-        assertEquals(30, store.get("A").intValue());
-        assertEquals(20, store.get("B").intValue());
+        TestRecord<String, Long> record1 = outputScoreTopic.readRecord();
+        TestRecord<String, Long> record2 = outputScoreTopic.readRecord();
+        assertEquals(20, record1.value());
+        assertEquals(30, record2.value());
+        assertEquals("B", record1.key());
+        assertEquals("A", record2.key());
     }
 
     @Test
@@ -94,11 +107,14 @@ public class TestTopology {
         placeBet(new Bet("John", "B-A", Outcome.A, 10, 1.1,2));
         placeBet(new Bet("Marley", "C-B", Outcome.H, 10, 1.1,3));
 
-        TotallingTransformer kv_store = new TotallingTransformer("command");
-        KeyValueStore<String, Long> store = topologyTestDriver.getKeyValueStore(kv_store.STORE_NAME);
-        assertEquals(40, store.get("A").intValue());
-        assertEquals(20, store.get("B").intValue());
-        assertEquals(30, store.get("C").intValue());
+        Long[] ans = new Long [] {20L, 30L, 20L, 40L, 30L};
+        String[] keys = new String [] {"B", "A", "C", "A", "C"};
+
+        for (int i = 0; i < 5; i++) {
+            TestRecord<String, Long> record = outputScoreTopic.readRecord();
+            assertEquals(ans[i], record.value());
+            assertEquals(keys[i], record.key());
+        }
     }
 
     @Test

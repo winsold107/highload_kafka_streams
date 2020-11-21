@@ -39,9 +39,7 @@ public class TopologyConfiguration {
                     return KeyValue.pair(bettor, amount);
         });
 
-        KTable<String, Long> betsTable
-                = new TotallingTransformer("bettor")
-                .transformStream(streamsBuilder, gainBettorAmount)
+        KTable<String, Long> betsTable = gainBettorAmount
                 .groupByKey(Grouped.with(Serdes.String(), new JsonSerde<>(Long.class)))
                 .reduce((new Reducer<Long>() {
                     @Override
@@ -69,8 +67,7 @@ public class TopologyConfiguration {
         });
 
         KTable<String, Long> commandGain
-                = new TotallingTransformer("command")
-                .transformStream(streamsBuilder, gainCommandAmount)
+                = gainCommandAmount
                 .groupByKey(Grouped.with(Serdes.String(), new JsonSerde<>(Long.class)))
                 .reduce((new Reducer<Long>() {
                     @Override
@@ -107,12 +104,12 @@ public class TopologyConfiguration {
                 StreamJoined.with(Serdes.String(),
                         new JsonSerde<>(Bet.class),
                         new JsonSerde<>(Bet.class)
-                ));
+                )).selectKey((k, v) -> v.getBettor());
 
 
         join.to(FRAUD_TOPIC, Produced.with(Serdes.String(), new JsonSerde<>(Fraud.class)));
-        commandsStream.to(COMMAND_AMOUNT_TOPIC, Produced.with(Serdes.String(), new JsonSerde<>(Long.class)));
-        betsStream.to(BETTOR_AMOUNT_TOPIC, Produced.with(Serdes.String(), new JsonSerde<>(Long.class)));
+        commandsStream.to(COMMAND_AMOUNT_TOPIC, Produced.with(Serdes.String(), Serdes.Long()));
+        betsStream.to(BETTOR_AMOUNT_TOPIC, Produced.with(Serdes.String(), Serdes.Long()));
         Topology topology = streamsBuilder.build();
         System.out.println("==============================");
         System.out.println(topology.describe());
