@@ -1,2 +1,2 @@
 # highload_kafka_streams
-homework
+Топологию и тесты для домашнего задания смотреть в counting модуле
